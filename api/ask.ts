@@ -18,13 +18,35 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
+        body: JSON.stringify({
+          contents: [{ role: 'user', parts: [{ text: prompt }] }],
+          generationConfig: { temperature: 0.7, maxOutputTokens: 2048 },
+        }),
       }
     );
+
     const data = await response.json();
-    const text = data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+
+    // Log the full response for debugging (shows in Vercel function logs)
+    if (!response.ok) {
+      console.error('[mylalla/ask] Gemini API error:', JSON.stringify(data));
+      return res.status(response.status).json({ error: data?.error?.message || 'Gemini API error' });
+    }
+
+    // Try all known response paths
+    const text =
+      data?.candidates?.[0]?.content?.parts?.[0]?.text ||
+      data?.candidates?.[0]?.output ||
+      data?.text ||
+      '';
+
+    if (!text) {
+      console.warn('[mylalla/ask] Empty response from Gemini:', JSON.stringify(data).slice(0, 500));
+    }
+
     return res.status(200).json({ text });
   } catch (err: any) {
+    console.error('[mylalla/ask] fetch error:', err.message);
     return res.status(500).json({ error: err.message });
   }
 }
